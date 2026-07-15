@@ -1861,6 +1861,7 @@ def init_db():
     _migrate_add_caldav_sync_columns()
     _migrate_add_calendar_recurrence_exdates()
     _migrate_chat_messages_fts()
+    _migrate_outbox_triggers()
     _migrate_encrypt_email_passwords()
     _migrate_encrypt_signatures()
     _migrate_encrypt_endpoint_keys()
@@ -1958,6 +1959,33 @@ def _migrate_chat_messages_fts():
             conn.close()
         except Exception:
             pass
+
+
+
+def _migrate_outbox_triggers():
+    """Install SQLite outbox triggers on all SQLAlchemy-managed tables."""
+    if not DATABASE_URL.startswith("sqlite"):
+        return
+
+    db_path = DATABASE_URL.replace("sqlite:///", "")
+    if db_path == ":memory:":
+        return
+
+    conn = None
+    try:
+        from core.outbox_triggers import install_outbox, table_specs_from_metadata
+
+        conn = sqlite3.connect(db_path)
+        install_outbox(conn, table_specs_from_metadata(Base.metadata))
+        conn.commit()
+    except Exception as e:
+        logging.getLogger(__name__).warning(f"outbox triggers migration failed: {e}")
+    finally:
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 
 def _migrate_add_email_smtp_security():
