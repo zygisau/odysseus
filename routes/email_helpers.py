@@ -868,6 +868,12 @@ def _init_scheduled_db():
     # Message sender addresses are global, so signatures must be scoped to the
     # mailbox owner before `/read` returns them to the renderer.
     _ensure_sender_signatures_table(conn)
+    try:
+        from core.outbox_triggers import install_outbox, table_specs_from_pragma
+        install_outbox(conn, table_specs_from_pragma(conn))
+    except Exception as _outbox_e:
+        import logging as _lg
+        _lg.getLogger(__name__).warning(f"outbox triggers install failed: {_outbox_e}")
     conn.commit()
     conn.close()
 
